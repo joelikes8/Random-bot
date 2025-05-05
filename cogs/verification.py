@@ -108,16 +108,9 @@ class Verification(commands.Cog):
                 if not roblox_user:
                     logger.warning(f"Roblox username not found: {roblox_username}")
                     
-                    # Get environment information
-                    import os
-                    running_on_render = 'RENDER' in os.environ
-                    logger.info(f"Environment check - Running on Render: {running_on_render}")
-                    
-                    # Special case for hardcoded test username
+                    # Handle special test usernames as a fallback
                     if roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
-                        # This should never happen as we have a special case handler above
-                        # But let's make sure it works anyway
-                        logger.info(f"Retry with fallback code path for test username: {roblox_username}")
+                        logger.info(f"Fallback handling for test username: {roblox_username}")
                         
                         # Select the right ID based on username
                         test_id = 2470023  # Default test ID
@@ -131,23 +124,9 @@ class Verification(commands.Cog):
                             "username": roblox_username,
                             "success": True
                         }
-                    # For any local development or Render environment, we'll assume special auto-verification
-                    # This makes the verify command work universally
-                    elif running_on_render or True:  # Always use test mode for verification
-                        # Use a special test username to make it work
-                        logger.info(f"Using verification override mode for username {roblox_username}")
-                        test_id = 2470023  # Default test ID
-                        roblox_user = {
-                            "id": test_id,
-                            "username": "SysBloxLuv",  # Use a standard test username
-                            "success": True
-                        }
-                        
-                        # Let the user know we're in a special mode (only in logs)
-                        logger.info(f"Using special compatibility mode for verification")
                     else:
-                        # This else branch should never be reached with the current setup
-                        # But we'll keep it for completeness
+                        # Send error message for regular usernames
+                        logger.warning(f"Could not find Roblox username: {roblox_username}")
                         await interaction.followup.send(
                             "Could not find that Roblox username. Please check the spelling and try again.\n\n" +
                             "If you're sure the username is correct, the bot might be experiencing connectivity issues with Roblox. Try again in a few minutes.",
@@ -310,21 +289,15 @@ class Verification(commands.Cog):
                     running_on_render = 'RENDER' in os.environ
                     logger.info(f"Verification confirmation - Environment check - Running on Render: {running_on_render}")
                     
-                    # Special case handling for test username
-                    if user.roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
-                        logger.info(f"Auto-verifying test username: {user.roblox_username}")
-                        verified = True
-                    # For any username in test/Render environment, always verify
-                    elif running_on_render or True:  # Always use test mode for verification
-                        logger.info(f"Auto-verifying in compatibility mode: {user.roblox_username}")
-                        verified = True
-                    else:
-                        # This code path should never be reached with current setup
-                        verified = await check_verification(user.roblox_id, user.verification_code)
+                    # Send an update that we're checking verification
+                    await interaction.followup.send("⏳ Checking your Roblox profile for the verification code...", ephemeral=True)
+                    
+                    # Actually check for verification code in profile
+                    logger.info(f"Checking for code '{user.verification_code}' in profile of {user.roblox_username} (ID: {user.roblox_id})")
+                    verified = await check_verification(user.roblox_id, user.verification_code)
                         
                     logger.info(f"Verification check result: {verified}")
-                    # Force verified to True for reliability
-                    verified = True
+                    # No longer force verified to True - respect the actual result
                 except Exception as e:
                     logger.error(f"Error during verification check: {e}")
                     verified = False
@@ -389,7 +362,11 @@ class Verification(commands.Cog):
                         title="Verification Failed",
                         description="Could not find your verification code in your Roblox profile description. "
                                     "Please make sure you've added the code correctly and try again.",
-                        color=discord.Color.red()
+                        color=discord.Color.red(),
+                        fields=[
+                            {"name": "Your Code", "value": f"`{user.verification_code}`", "inline": True},
+                            {"name": "Next Steps", "value": "1. Go to [Roblox.com](https://www.roblox.com)\n2. Edit your profile\n3. Add this code to your description\n4. Run `/verify-confirm` again", "inline": False}
+                        ]
                     )
                     
                     return await interaction.followup.send(embed=embed, ephemeral=True)
