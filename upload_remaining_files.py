@@ -2,11 +2,6 @@ import os
 import base64
 import requests
 import json
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # GitHub configuration
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -24,19 +19,12 @@ headers = {
 
 def upload_file(file_path):
     try:
-        # Get the file name
-        file_name = os.path.basename(file_path)
-        
-        # Skip .git files and directories
-        if '.git' in file_path or '__pycache__' in file_path or '.upm' in file_path or '.pythonlibs' in file_path or '.cache' in file_path or '.local' in file_path:
-            logger.info(f"Skipping {file_path}")
-            return
-        
-        # Skip large binary files like generated-icon.png
-        if file_name == 'generated-icon.png' or file_name == 'uv.lock':
-            logger.info(f"Skipping large binary file: {file_path}")
-            return
-        
+        # Skip binary files or large files
+        if file_path.endswith(('.png', '.jpg', '.jpeg', '.ico', '.gif')) or \
+           os.path.getsize(file_path) > 1000000:  # Skip files larger than 1MB
+            print(f"Skipping large binary file: {file_path}")
+            return False
+            
         # Read file content
         with open(file_path, 'rb') as file:
             content = file.read()
@@ -51,7 +39,7 @@ def upload_file(file_path):
         
         # Create the API request data
         data = {
-            'message': f'Upload {file_name}',
+            'message': f'Update {file_path} - Bot modules',
             'content': content_encoded
         }
         
@@ -63,59 +51,51 @@ def upload_file(file_path):
             # File exists, update it
             file_data = check_response.json()
             data['sha'] = file_data['sha']
-            logger.info(f"Updating existing file: {file_path}")
+            print(f"Updating existing file: {file_path}")
         else:
-            logger.info(f"Creating new file: {file_path}")
+            print(f"Creating new file: {file_path}")
         
         # Make the API request
         response = requests.put(f'{API_URL}/{github_path}', headers=headers, data=json.dumps(data))
         
         # Check response
         if response.status_code in [200, 201]:
-            logger.info(f"Successfully uploaded {file_path}")
+            print(f"Successfully uploaded {file_path}")
             return True
         else:
-            logger.error(f"Failed to upload {file_path}: {response.status_code} {response.text}")
+            print(f"Failed to upload {file_path}: {response.status_code} {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error uploading {file_path}: {str(e)}")
+        print(f"Error uploading {file_path}: {str(e)}")
         return False
 
-# Get all Python files in the current directory
 def find_python_files():
+    """Find all Python files in the cogs and utils directories"""
     python_files = []
-    for file in os.listdir('.'):
-        if file.endswith('.py') and os.path.isfile(file):
-            python_files.append(file)
+    
+    # Check cogs directory
+    for root, dirs, files in os.walk('cogs'):
+        for file in files:
+            if file.endswith('.py'):
+                python_files.append(os.path.join(root, file))
+    
+    # Check utils directory
+    for root, dirs, files in os.walk('utils'):
+        for file in files:
+            if file.endswith('.py'):
+                python_files.append(os.path.join(root, file))
+    
     return python_files
 
-# Already uploaded files
-uploaded_files = [
-    'app.py', 'main.py', 'models.py', 'bot.py', 'activate_bot.py',
-    'direct_upload.py', 'login_roblox.py', 'run_bot.py', 'supervisor.py',
-    '.render_config.py', 'upload_main_files.py', 'github_check_repo.py',
-    'github_upload.py', 'upload_new_files.py', 'upload_specific_files.py',
-    'upload_github_scripts.py', 'github_upload_all.py', 'github_upload_cogs.py',
-    'github_upload_env.py', 'github_upload_utils.py', 'github_update_cookie.py'
-]
+# Find and upload all Python files in cogs and utils
+python_files = find_python_files()
+print(f"Found {len(python_files)} Python files in cogs and utils directories")
 
-if __name__ == "__main__":
-    logger.info("Starting upload of remaining Python files...")
-    
-    all_python_files = find_python_files()
-    remaining_files = [file for file in all_python_files if file not in uploaded_files]
-    
-    if not remaining_files:
-        logger.info("No remaining Python files to upload")
-    else:
-        logger.info(f"Found {len(remaining_files)} remaining Python files to upload")
-        
-        for file in remaining_files:
-            upload_file(file)
-    
-    # Also upload this script itself
-    if 'upload_remaining_files.py' not in uploaded_files and 'upload_remaining_files.py' not in remaining_files:
-        upload_file('upload_remaining_files.py')
-    
-    logger.info("Finished uploading remaining Python files")
+# Upload each file individually
+for file_path in python_files:
+    print(f"\nUploading {file_path}...")
+    upload_file(file_path)
+
+# Upload this script itself
+upload_file('upload_remaining_files.py')
