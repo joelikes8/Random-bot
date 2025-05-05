@@ -1,6 +1,6 @@
 # Configuration file for Render.com compatibility mode
 
-# Enable Render.com compatibility mode for all environments
+# Enable Render.com compatibility mode for specific functionality
 IS_RENDER = True
 
 # Increase timeouts and retries to handle Render's network environment
@@ -15,8 +15,8 @@ SPECIAL_TEST_USERNAMES = [
     "builderman"
 ]
 
-# Force all usernames to be treated as valid
-FORCE_TEST_USERNAMES = True
+# Force username override is now disabled - verification will check for codes
+FORCE_TEST_USERNAMES = False
 
 # Map of test usernames to their Roblox IDs
 TEST_USERNAME_IDS = {
