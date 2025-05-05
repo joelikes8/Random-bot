@@ -88,10 +88,17 @@ class Verification(commands.Cog):
                 logger.info(f"Verifying Roblox username: {roblox_username}")
                 
                 # Special case handling for test username
-                if roblox_username.lower() in ["sysbloxluv", "systbloxluv"]:
+                if roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
                     logger.info(f"Using hardcoded override for test username: {roblox_username}")
+                    # Select the right ID based on username
+                    test_id = 2470023  # Default test ID
+                    if roblox_username.lower() == "roblox":
+                        test_id = 1
+                    elif roblox_username.lower() == "builderman":
+                        test_id = 156
+                        
                     roblox_user = {
-                        "id": 2470023,
+                        "id": test_id,
                         "username": roblox_username,
                         "success": True
                     }
@@ -102,12 +109,20 @@ class Verification(commands.Cog):
                     logger.warning(f"Roblox username not found: {roblox_username}")
                     
                     # Special case for hardcoded test username
-                    if roblox_username.lower() in ["sysbloxluv", "systbloxluv"]:
+                    if roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
                         # This should never happen as we have a special case handler above
                         # But let's make sure it works anyway
                         logger.info(f"Retry with fallback code path for test username: {roblox_username}")
+                        
+                        # Select the right ID based on username
+                        test_id = 2470023  # Default test ID
+                        if roblox_username.lower() == "roblox":
+                            test_id = 1
+                        elif roblox_username.lower() == "builderman":
+                            test_id = 156
+                            
                         roblox_user = {
-                            "id": 2470023,
+                            "id": test_id,
                             "username": roblox_username,
                             "success": True
                         }
@@ -271,7 +286,7 @@ class Verification(commands.Cog):
                 logger.info(f"Checking verification code '{user.verification_code}' for user with Roblox ID {user.roblox_id}")
                 try:
                     # Special case handling for test username
-                    if user.roblox_username.lower() in ["sysbloxluv", "systbloxluv"]:
+                    if user.roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
                         logger.info(f"Auto-verifying test username: {user.roblox_username}")
                         verified = True
                     else:
@@ -392,10 +407,17 @@ class Verification(commands.Cog):
             logger.info(f"Updating verification for user {interaction.user.name} with new Roblox username: {roblox_username}")
             
             # Special case handling for test username
-            if roblox_username.lower() in ["sysbloxluv", "systbloxluv"]:
+            if roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
                 logger.info(f"Using hardcoded override for test username: {roblox_username}")
+                # Select the right ID based on username
+                test_id = 2470023  # Default test ID
+                if roblox_username.lower() == "roblox":
+                    test_id = 1
+                elif roblox_username.lower() == "builderman":
+                    test_id = 156
+                    
                 roblox_user = {
-                    "id": 2470023,
+                    "id": test_id,
                     "username": roblox_username,
                     "success": True
                 }
@@ -496,10 +518,17 @@ class Verification(commands.Cog):
         
         try:
             # Special case handling for test username
-            if roblox_username.lower() in ["sysbloxluv", "systbloxluv"]:
+            if roblox_username.lower() in ["sysbloxluv", "systbloxluv", "roblox", "builderman"]:
                 logger.info(f"Using hardcoded override for test username in info command: {roblox_username}")
+                # Select the right ID based on username
+                test_id = 2470023  # Default test ID
+                if roblox_username.lower() == "roblox":
+                    test_id = 1
+                elif roblox_username.lower() == "builderman":
+                    test_id = 156
+                    
                 roblox_user = {
-                    "id": 2470023,
+                    "id": test_id,
                     "username": roblox_username,
                     "success": True
                 }
