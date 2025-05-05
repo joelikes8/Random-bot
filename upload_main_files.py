@@ -2,11 +2,6 @@ import os
 import base64
 import requests
 import json
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # GitHub configuration
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -24,19 +19,6 @@ headers = {
 
 def upload_file(file_path):
     try:
-        # Get the file name
-        file_name = os.path.basename(file_path)
-        
-        # Skip .git files and directories
-        if '.git' in file_path or '__pycache__' in file_path or '.upm' in file_path or '.pythonlibs' in file_path or '.cache' in file_path or '.local' in file_path:
-            logger.info(f"Skipping {file_path}")
-            return
-        
-        # Skip large binary files like generated-icon.png
-        if file_name == 'generated-icon.png' or file_name == 'uv.lock':
-            logger.info(f"Skipping large binary file: {file_path}")
-            return
-        
         # Read file content
         with open(file_path, 'rb') as file:
             content = file.read()
@@ -51,7 +33,7 @@ def upload_file(file_path):
         
         # Create the API request data
         data = {
-            'message': f'Upload {file_name}',
+            'message': f'Update {file_path} - Web application integration',
             'content': content_encoded
         }
         
@@ -63,47 +45,36 @@ def upload_file(file_path):
             # File exists, update it
             file_data = check_response.json()
             data['sha'] = file_data['sha']
-            logger.info(f"Updating existing file: {file_path}")
+            print(f"Updating existing file: {file_path}")
         else:
-            logger.info(f"Creating new file: {file_path}")
+            print(f"Creating new file: {file_path}")
         
         # Make the API request
         response = requests.put(f'{API_URL}/{github_path}', headers=headers, data=json.dumps(data))
         
         # Check response
         if response.status_code in [200, 201]:
-            logger.info(f"Successfully uploaded {file_path}")
+            print(f"Successfully uploaded {file_path}")
             return True
         else:
-            logger.error(f"Failed to upload {file_path}: {response.status_code} {response.text}")
+            print(f"Failed to upload {file_path}: {response.status_code} {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error uploading {file_path}: {str(e)}")
+        print(f"Error uploading {file_path}: {str(e)}")
         return False
 
-# Main Python files to upload
-main_files = [
-    'app.py',
+# The main application files
+files_to_upload = [
     'main.py',
-    'models.py',
-    'bot.py',
     'activate_bot.py',
-    'direct_upload.py',
-    'login_roblox.py',
-    'run_bot.py',
-    'supervisor.py',
-    '.render_config.py',
-    'upload_main_files.py'  # Upload this file itself
+    'render_start.py'
 ]
 
-if __name__ == "__main__":
-    logger.info("Starting upload of main Python files...")
-    
-    for file in main_files:
-        if os.path.exists(file):
-            upload_file(file)
-        else:
-            logger.warning(f"File {file} does not exist, skipping")
-    
-    logger.info("Finished uploading main Python files")
+# Upload each file individually
+for file_path in files_to_upload:
+    print(f"\nUploading {file_path}...")
+    upload_file(file_path)
+
+# Finally upload this script itself
+upload_file('upload_main_files.py')
