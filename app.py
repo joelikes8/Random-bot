@@ -17,10 +17,21 @@ app.secret_key = os.environ.get("SESSION_SECRET", os.urandom(24).hex())
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL")
+
+# Fix Neon/Render PostgreSQL connection URL if needed
+# Some providers like Heroku/Render can add 'postgres://' instead of 'postgresql://'
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
+    "connect_args": {
+        # Add SSL mode required by some PostgreSQL providers
+        "sslmode": "require" if "RENDER" in os.environ else "prefer"
+    }
 }
 
 # Initialize the app with the extension
