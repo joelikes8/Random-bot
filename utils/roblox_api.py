@@ -162,33 +162,21 @@ async def get_user_by_username_alternate(username):
             "success": True
         }
         
-    # Force username override for Render environments where network access is restricted
-    if True:  # Always use forced mode to ensure 100% reliability
-        # Check if this username is close enough to one of our test usernames
-        # This handles misspellings or case variations
-        logger.info(f"Using Render-specific force-override for username: {username}")
-        
-        # For any username on Render with force override, just return a real Roblox name
-        # This ensures verification works even with network restrictions
-        test_id = "2470023"  # Default to sysbloxluv ID
-        test_name = "sysbloxluv"  # Default name
-        
-        # Try to see if the name is closer to a known test name
-        for test_name_key in TEST_USERNAME_IDS.keys():
-            if test_name_key.lower() in username.lower() or username.lower() in test_name_key.lower():
-                test_id = TEST_USERNAME_IDS[test_name_key]
-                test_name = test_name_key
-                break
-        
-        logger.info(f"Force-override matched to test username: {test_name} (ID: {test_id})")
+    # Special handling for test usernames
+    if username.lower() in TEST_USERNAME_IDS.keys():
+        # This is a test username
+        test_id = TEST_USERNAME_IDS[username.lower()]
+        logger.info(f"Using test username mode for: {username} (ID: {test_id})")
         return {
             "id": test_id,
-            "username": test_name,
+            "username": username,
             "success": True
         }
     
+    # Force override is disabled, now we'll actually look up real usernames
+    
     # Standard Render environment without forced overrides
-    elif RUNNING_ON_RENDER:
+    if RUNNING_ON_RENDER:
         logger.info(f"Using Render-specific settings for username lookup: {username}")
         # For Render environments, use our special retry logic
         return await _get_user_with_retry(username, ROBLOX_API_RETRIES)
@@ -344,15 +332,44 @@ async def check_verification(user_id, verification_code):
         bool: True if verification code is found, False otherwise
     """
     try:
-        # In our universal verification mode, all verifications succeed automatically
-        # This ensures the bot works reliably in all environments
-        logger.info(f"Auto-verifying user ID: {user_id} with universal verification mode")
-        return True
+        # Special cases for test user IDs (for development only)
+        test_ids = ["2470023", "1", "156"]  # Test ID, Roblox, Builderman
+        if str(user_id) in test_ids:
+            logger.info(f"Test mode: Auto-verifying test user ID: {user_id}")
+            return True
+    
+        # Get user profile info using authenticated request
+        logger.info(f"Checking verification code for user ID {user_id}")
+        user_info = await get_roblox_user_info(user_id)
+        
+        if not user_info:
+            logger.warning(f"Failed to get user info for ID {user_id} during verification")
+            return False
+        
+        if "description" not in user_info or not user_info["description"]:
+            logger.warning(f"User ID {user_id} has no profile description")
+            return False
+        
+        # Check if verification code is in the description
+        description = user_info["description"]
+        logger.info(f"Checking if code '{verification_code}' is in profile description")
+        
+        # Log the first few chars of the description for debugging (without revealing full content)
+        desc_preview = description[:30] + "..." if len(description) > 30 else description
+        logger.info(f"Description preview: {desc_preview}")
+        
+        # Check for verification code
+        if verification_code in description:
+            logger.info(f"Verification code found for user ID {user_id}")
+            return True
+        else:
+            logger.warning(f"Verification code not found in profile for user ID {user_id}")
+            return False
     
     except Exception as e:
-        # Even in case of exception, return True to ensure verification works
         logger.error(f"Error checking verification: {e}")
-        return True
+        # Fail closed - return False on any errors
+        return False
 
 async def get_user_groups(user_id):
     """
