@@ -143,34 +143,41 @@ class ServerManagement(commands.Cog):
             try:
                 announcement = await channel.send(embed=embed)
                 
-                # Save the hosted event to the database
-                # Import app context function
-                from app import with_app_context
-                
-                @with_app_context
-                def save_event_to_db():
-                    try:
-                        from models import HostedEvent
-                        new_event = HostedEvent(
-                            guild_id=str(interaction.guild.id),
-                            host_id=str(interaction.user.id),
-                            event_type=event_type,
-                            start_time=start_time,
-                            end_time=end_time,
-                            message_id=str(announcement.id),
-                            channel_id=str(channel.id)
-                        )
-                        
-                        db.session.add(new_event)
-                        db.session.commit()
-                        logger.info(f"Successfully saved hosted event to database")
-                        return True
-                    except Exception as e:
-                        logger.error(f"Error saving event to database: {e}")
-                        return False
-                
-                # Call the function to save the event
-                save_event_to_db()
+                # Save the hosted event to the database with improved error handling
+                # Import app context function and required models
+                try:
+                    from app import with_app_context, db
+                    from models import HostedEvent
+                    
+                    @with_app_context
+                    def save_event_to_db():
+                        try:
+                            new_event = HostedEvent(
+                                guild_id=str(interaction.guild.id),
+                                host_id=str(interaction.user.id),
+                                event_type=event_type,
+                                start_time=start_time,
+                                end_time=end_time,
+                                message_id=str(announcement.id),
+                                channel_id=str(channel.id)
+                            )
+                            
+                            db.session.add(new_event)
+                            db.session.commit()
+                            logger.info(f"Successfully saved hosted event to database")
+                            return True
+                        except Exception as e:
+                            db.session.rollback()  # Rollback on error
+                            logger.error(f"Error saving event to database: {e}")
+                            return False
+                    
+                    # Call the function to save the event
+                    result = save_event_to_db()
+                    if not result:
+                        logger.warning("Failed to save event to database, but continuing with UI feedback")
+                except Exception as e:
+                    logger.error(f"Critical error in database handling: {e}")
+                    # Continue with UI feedback even if DB fails
                 
                 # Send confirmation to the command user
                 confirm_embed = create_embed(
@@ -315,34 +322,40 @@ class ServerManagement(commands.Cog):
             try:
                 await channel.send(embed=embed, view=view)
                 
-                # Update the server config with the ticket channel
-                # Import app context function
-                from app import with_app_context
-                
-                @with_app_context
-                def update_server_config():
-                    try:
-                        from models import ServerConfig
-                        server_config = ServerConfig.query.filter_by(guild_id=str(interaction.guild.id)).first()
-                        
-                        if server_config:
-                            server_config.ticket_channel_id = str(channel.id)
-                        else:
-                            server_config = ServerConfig(
-                                guild_id=str(interaction.guild.id),
-                                ticket_channel_id=str(channel.id)
-                            )
-                            db.session.add(server_config)
-                        
-                        db.session.commit()
-                        logger.info(f"Updated server config with ticket channel ID: {channel.id}")
-                        return True
-                    except Exception as e:
-                        logger.error(f"Error updating server config: {e}")
-                        return False
-                
-                # Call the function to update the server config
-                update_server_config()
+                # Update the server config with the ticket channel - improved error handling
+                try:
+                    from app import with_app_context, db
+                    from models import ServerConfig
+                    
+                    @with_app_context
+                    def update_server_config():
+                        try:
+                            server_config = ServerConfig.query.filter_by(guild_id=str(interaction.guild.id)).first()
+                            
+                            if server_config:
+                                server_config.ticket_channel_id = str(channel.id)
+                            else:
+                                server_config = ServerConfig(
+                                    guild_id=str(interaction.guild.id),
+                                    ticket_channel_id=str(channel.id)
+                                )
+                                db.session.add(server_config)
+                            
+                            db.session.commit()
+                            logger.info(f"Updated server config with ticket channel ID: {channel.id}")
+                            return True
+                        except Exception as e:
+                            db.session.rollback()  # Rollback on error
+                            logger.error(f"Error updating server config: {e}")
+                            return False
+                    
+                    # Call the function to update the server config
+                    result = update_server_config()
+                    if not result:
+                        logger.warning("Failed to update server config, but continuing with UI feedback")
+                except Exception as e:
+                    logger.error(f"Critical error in database handling for ticket setup: {e}")
+                    # Continue with UI feedback even if DB fails
                 
                 # Send confirmation to the command user
                 confirm_embed = create_embed(
@@ -399,39 +412,48 @@ class ServerManagement(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            # Import app context function
-            from app import with_app_context
-            
-            @with_app_context
-            def update_server_config():
-                try:
-                    from models import ServerConfig
-                    server_config = ServerConfig.query.filter_by(guild_id=str(interaction.guild.id)).first()
-                    
-                    if not server_config:
-                        server_config = ServerConfig(guild_id=str(interaction.guild.id))
-                        db.session.add(server_config)
-                    
-                    # Update the server config with the provided values
-                    if verified_role:
-                        server_config.verified_role_id = str(verified_role.id)
-                    
-                    if announcement_channel:
-                        server_config.announcement_channel_id = str(announcement_channel.id)
-                    
-                    if host_channel:
-                        server_config.host_channel_id = str(host_channel.id)
-                    
-                    db.session.commit()
-                    logger.info(f"Updated server config for guild {interaction.guild.id}")
-                    return True
-                except Exception as e:
-                    logger.error(f"Error updating server config: {e}")
-                    return False
-            
-            # Call the function to update the server config
-            success = update_server_config()
-            if not success:
+            # Import app context function and required models with improved error handling
+            try:
+                from app import with_app_context, db
+                from models import ServerConfig
+                
+                @with_app_context
+                def update_server_config():
+                    try:
+                        server_config = ServerConfig.query.filter_by(guild_id=str(interaction.guild.id)).first()
+                        
+                        if not server_config:
+                            server_config = ServerConfig(guild_id=str(interaction.guild.id))
+                            db.session.add(server_config)
+                        
+                        # Update the server config with the provided values
+                        if verified_role:
+                            server_config.verified_role_id = str(verified_role.id)
+                        
+                        if announcement_channel:
+                            server_config.announcement_channel_id = str(announcement_channel.id)
+                        
+                        if host_channel:
+                            server_config.host_channel_id = str(host_channel.id)
+                        
+                        db.session.commit()
+                        logger.info(f"Updated server config for guild {interaction.guild.id}")
+                        return True
+                    except Exception as e:
+                        db.session.rollback()  # Rollback on error
+                        logger.error(f"Error updating server config: {e}")
+                        return False
+                
+                # Call the function to update the server config
+                success = update_server_config()
+                if not success:
+                    logger.warning("Database update failed for server config, informing user")
+                    return await interaction.followup.send(
+                        "An error occurred while updating the server configuration. Please try again later.",
+                        ephemeral=True
+                    )
+            except Exception as e:
+                logger.error(f"Critical error in database handling for server setup: {e}")
                 return await interaction.followup.send(
                     "An error occurred while updating the server configuration. Please try again later.",
                     ephemeral=True
@@ -492,62 +514,70 @@ class ServerManagement(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            # Import app context function
-            from app import with_app_context
-            
-            # Parse role IDs
-            roles_to_add = []
-            if role_ids:
-                # Remove any whitespace and split by commas
-                role_id_list = [r.strip() for r in role_ids.replace(' ', '').split(',')]
-                # Filter out empty strings
-                role_id_list = [r for r in role_id_list if r]
-                for role_id in role_id_list:
+            # Import app context function and required models with improved error handling
+            try:
+                from app import with_app_context, db
+                from models import TicketRole
+                
+                # Parse role IDs
+                roles_to_add = []
+                if role_ids:
+                    # Remove any whitespace and split by commas
+                    role_id_list = [r.strip() for r in role_ids.replace(' ', '').split(',')]
+                    # Filter out empty strings
+                    role_id_list = [r for r in role_id_list if r]
+                    for role_id in role_id_list:
+                        try:
+                            # Validate role ID
+                            role_id = str(int(role_id))  # Will raise ValueError if not a number
+                            roles_to_add.append(role_id)
+                        except ValueError:
+                            logger.warning(f"Invalid role ID: {role_id}")
+                
+                @with_app_context
+                def update_ticket_roles():
                     try:
-                        # Validate role ID
-                        role_id = str(int(role_id))  # Will raise ValueError if not a number
-                        roles_to_add.append(role_id)
-                    except ValueError:
-                        logger.warning(f"Invalid role ID: {role_id}")
-            
-            @with_app_context
-            def update_ticket_roles():
-                try:
-                    from models import TicketRole
-                    
-                    # First, delete existing ticket roles for this guild
-                    existing_roles = TicketRole.query.filter_by(guild_id=str(interaction.guild.id)).all()
-                    for role in existing_roles:
-                        db.session.delete(role)
-                    
-                    # Add verified role if provided
-                    if verified_role:
-                        verified_role_entry = TicketRole(
-                            guild_id=str(interaction.guild.id),
-                            role_id=str(verified_role.id),
-                            is_verified_role=True
-                        )
-                        db.session.add(verified_role_entry)
-                    
-                    # Add other ticket access roles
-                    for role_id in roles_to_add:
-                        role_entry = TicketRole(
-                            guild_id=str(interaction.guild.id),
-                            role_id=role_id,
-                            is_verified_role=False
-                        )
-                        db.session.add(role_entry)
-                    
-                    db.session.commit()
-                    logger.info(f"Updated ticket roles for guild {interaction.guild.id}")
-                    return True, len(roles_to_add) + (1 if verified_role else 0)
-                except Exception as e:
-                    logger.error(f"Error updating ticket roles: {e}")
-                    return False, 0
-            
-            # Update ticket roles
-            success, roles_count = update_ticket_roles()
-            if not success:
+                        # First, delete existing ticket roles for this guild
+                        existing_roles = TicketRole.query.filter_by(guild_id=str(interaction.guild.id)).all()
+                        for role in existing_roles:
+                            db.session.delete(role)
+                        
+                        # Add verified role if provided
+                        if verified_role:
+                            verified_role_entry = TicketRole(
+                                guild_id=str(interaction.guild.id),
+                                role_id=str(verified_role.id),
+                                is_verified_role=True
+                            )
+                            db.session.add(verified_role_entry)
+                        
+                        # Add other ticket access roles
+                        for role_id in roles_to_add:
+                            role_entry = TicketRole(
+                                guild_id=str(interaction.guild.id),
+                                role_id=role_id,
+                                is_verified_role=False
+                            )
+                            db.session.add(role_entry)
+                        
+                        db.session.commit()
+                        logger.info(f"Updated ticket roles for guild {interaction.guild.id}")
+                        return True, len(roles_to_add) + (1 if verified_role else 0)
+                    except Exception as e:
+                        db.session.rollback()  # Rollback on error
+                        logger.error(f"Error updating ticket roles: {e}")
+                        return False, 0
+                
+                # Update ticket roles
+                success, roles_count = update_ticket_roles()
+                if not success:
+                    logger.warning("Database update failed for ticket roles, informing user")
+                    return await interaction.followup.send(
+                        "An error occurred while updating ticket roles. Please try again later.",
+                        ephemeral=True
+                    )
+            except Exception as e:
+                logger.error(f"Critical error in database handling for ticket roles setup: {e}")
                 return await interaction.followup.send(
                     "An error occurred while updating ticket roles. Please try again later.",
                     ephemeral=True
