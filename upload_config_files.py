@@ -2,11 +2,6 @@ import os
 import base64
 import requests
 import json
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # GitHub configuration
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -24,14 +19,6 @@ headers = {
 
 def upload_file(file_path):
     try:
-        # Get the file name
-        file_name = os.path.basename(file_path)
-        
-        # Skip .git files, .env (contains secrets), and large binary files
-        if '.git' in file_path or file_path == '.env' or file_name == 'generated-icon.png' or file_name == 'uv.lock':
-            logger.info(f"Skipping sensitive or large file: {file_path}")
-            return
-        
         # Read file content
         with open(file_path, 'rb') as file:
             content = file.read()
@@ -46,7 +33,7 @@ def upload_file(file_path):
         
         # Create the API request data
         data = {
-            'message': f'Upload {file_name}',
+            'message': f'Update {file_path} - Configuration files',
             'content': content_encoded
         }
         
@@ -58,44 +45,38 @@ def upload_file(file_path):
             # File exists, update it
             file_data = check_response.json()
             data['sha'] = file_data['sha']
-            logger.info(f"Updating existing file: {file_path}")
+            print(f"Updating existing file: {file_path}")
         else:
-            logger.info(f"Creating new file: {file_path}")
+            print(f"Creating new file: {file_path}")
         
         # Make the API request
         response = requests.put(f'{API_URL}/{github_path}', headers=headers, data=json.dumps(data))
         
         # Check response
         if response.status_code in [200, 201]:
-            logger.info(f"Successfully uploaded {file_path}")
+            print(f"Successfully uploaded {file_path}")
             return True
         else:
-            logger.error(f"Failed to upload {file_path}: {response.status_code} {response.text}")
+            print(f"Failed to upload {file_path}: {response.status_code} {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error uploading {file_path}: {str(e)}")
+        print(f"Error uploading {file_path}: {str(e)}")
         return False
 
-# Config files to upload
-config_files = [
+# The configuration files
+files_to_upload = [
     '.env.example',
-    'group_join_instructions.md',
-    'pyproject.toml',
-    'README.md',
-    'render_requirements.txt',
+    '.render_config.py',
     'render.yaml',
-    '.replit',
-    'upload_config_files.py'  # Upload this file itself
+    'render_requirements.txt',
+    '.replit'
 ]
 
-if __name__ == "__main__":
-    logger.info("Starting upload of configuration files...")
-    
-    for file in config_files:
-        if os.path.exists(file):
-            upload_file(file)
-        else:
-            logger.warning(f"File {file} does not exist, skipping")
-    
-    logger.info("Finished uploading configuration files")
+# Upload each file individually
+for file_path in files_to_upload:
+    print(f"\nUploading {file_path}...")
+    upload_file(file_path)
+
+# Finally upload this script itself
+upload_file('upload_config_files.py')
