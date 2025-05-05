@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: usmc-discord-bot
+    env: python
+    buildCommand: pip install -r render_requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 render_start:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ROBLOX_COOKIE
+        sync: false
+      - key: ROBLOX_USERNAME
+        sync: false
+      - key: ROBLOX_PASSWORD
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    healthCheckPath: /health
