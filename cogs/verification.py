@@ -54,9 +54,21 @@ class Verification(commands.Cog):
                 try:
                     logger.info(f"Working inside app context to update/create user {discord_id}")
                     from models import User
-                    existing_user = User.query.filter_by(discord_id=discord_id).first()
                     
-                    logger.info(f"Existing user found: {existing_user is not None}")
+                    # First, ensure the discord_id is a string
+                    if not isinstance(discord_id, str):
+                        discord_id = str(discord_id)
+                    
+                    # Use a direct SQL query to check if user exists for more reliable results
+                    from sqlalchemy import text
+                    result = db.session.execute(text("SELECT id FROM users WHERE discord_id = :discord_id"), 
+                                             {"discord_id": discord_id})
+                    user_exists = result.fetchone() is not None
+                    logger.info(f"Direct SQL check - User exists: {user_exists}")
+                    
+                    # Now use the ORM with the knowledge of whether user exists
+                    existing_user = User.query.filter_by(discord_id=discord_id).first()
+                    logger.info(f"ORM check - Existing user found: {existing_user is not None}")
                     
                     if existing_user:
                         existing_user.roblox_id = roblox_id
@@ -65,21 +77,53 @@ class Verification(commands.Cog):
                         existing_user.verified = False
                         logger.info(f"Updated existing user: {existing_user.discord_id}")
                     else:
-                        new_user = User(
-                            discord_id=discord_id,
-                            roblox_id=roblox_id,
-                            roblox_username=roblox_username,
-                            verification_code=verification_code,
-                            verified=False
-                        )
-                        db.session.add(new_user)
-                        logger.info(f"Created new user for discord ID: {discord_id}")
+                        # If direct SQL says user exists but ORM doesn't find it, force a commit and try again
+                        if user_exists:
+                            db.session.commit()
+                            existing_user = User.query.filter_by(discord_id=discord_id).first()
+                            if existing_user:
+                                existing_user.roblox_id = roblox_id
+                                existing_user.roblox_username = roblox_username
+                                existing_user.verification_code = verification_code
+                                existing_user.verified = False
+                                logger.info(f"Updated existing user (after retry): {existing_user.discord_id}")
+                            else:
+                                logger.warning(f"Strange state: SQL says user exists but ORM can't find it after commit")
+                        
+                        # Create new user if still not found
+                        if not existing_user:
+                            new_user = User(
+                                discord_id=discord_id,
+                                roblox_id=roblox_id,
+                                roblox_username=roblox_username,
+                                verification_code=verification_code,
+                                verified=False
+                            )
+                            db.session.add(new_user)
+                            logger.info(f"Created new user for discord ID: {discord_id}")
                     
+                    # Flush changes to get any primary key values but don't commit yet
+                    db.session.flush()
+                    
+                    # Force a commit to ensure changes are persisted
                     db.session.commit()
+                    
+                    # Verify the user was actually saved
+                    verification_check = User.query.filter_by(discord_id=discord_id).first()
+                    if verification_check:
+                        logger.info(f"DB VERIFICATION: User {discord_id} successfully saved with code {verification_check.verification_code}")
+                    else:
+                        logger.error(f"DB VERIFICATION FAILED: User {discord_id} not found after saving!")
+                        
                     logger.info(f"DB SUCCESS: Updated user record for {discord_id}")
                     return True
                 except Exception as e:
                     logger.error(f"DB ERROR: Failed to update database: {e}")
+                    # Try to rollback on error
+                    try:
+                        db.session.rollback()
+                    except Exception as rollback_error:
+                        logger.error(f"Rollback failed: {rollback_error}")
                     return False
             
             # Let's start with minimal functionality to isolate where the problem is
@@ -228,8 +272,30 @@ class Verification(commands.Cog):
                 def get_user_data(discord_id):
                     try:
                         from models import User
+                        from sqlalchemy import text
+                        
+                        # Ensure discord_id is a string
+                        if not isinstance(discord_id, str):
+                            discord_id = str(discord_id)
+                            
+                        # First try with direct SQL for more reliable results
+                        sql = text("SELECT * FROM users WHERE discord_id = :discord_id")
+                        result = db.session.execute(sql, {"discord_id": discord_id})
+                        rows = result.fetchall()
+                        sql_found = len(rows) > 0
+                        logger.info(f"Direct SQL query found {len(rows)} users with discord ID: {discord_id}")
+                        
+                        # Then try with ORM
                         user = User.query.filter_by(discord_id=discord_id).first()
-                        logger.info(f"Retrieved user data: {user is not None}")
+                        logger.info(f"ORM query result: {user is not None}")
+                        
+                        # If SQL finds a user but ORM doesn't, try to refresh the session
+                        if sql_found and not user:
+                            logger.warning("SQL found user but ORM didn't, refreshing session...")
+                            db.session.commit()
+                            user = User.query.filter_by(discord_id=discord_id).first()
+                            logger.info(f"After session refresh, ORM query result: {user is not None}")
+                            
                         return user
                     except Exception as e:
                         logger.error(f"Database error in get_user_data: {e}")
@@ -261,7 +327,33 @@ class Verification(commands.Cog):
                 logger.info(f"Attempting to get user data for discord ID: {interaction.user.id}")
                 user = get_user_data(str(interaction.user.id))
                 
+                # Enhanced debugging
+                logger.info(f"Verification confirmation - User retrieval result: {user is not None}")
+                if user is not None:
+                    logger.info(f"User data - Discord ID: {user.discord_id}, Roblox ID: {user.roblox_id}, Code: {user.verification_code}")
+                
                 if not user:
+                    # Look up discord ID directly in the database for debugging
+                    @with_app_context
+                    def direct_query():
+                        from models import User
+                        from sqlalchemy import text
+                        try:
+                            # Direct SQL query to check if the user exists
+                            sql = text("SELECT * FROM users WHERE discord_id = :discord_id")
+                            result = db.session.execute(sql, {"discord_id": str(interaction.user.id)})
+                            rows = result.fetchall()
+                            logger.info(f"Direct DB query found {len(rows)} users with discord ID: {interaction.user.id}")
+                            if rows:
+                                for row in rows:
+                                    logger.info(f"Row data: {row}")
+                            return len(rows) > 0
+                        except Exception as e:
+                            logger.error(f"Direct query error: {e}")
+                            return False
+                    
+                    direct_result = direct_query()
+                    logger.warning(f"Direct query result: {direct_result}")
                     logger.warning(f"User {interaction.user.name} tried to confirm verification without starting process")
                     return await interaction.followup.send(
                         "You haven't started the verification process. Please use `/verify` first.",
@@ -401,17 +493,68 @@ class Verification(commands.Cog):
             # Create an inner function to handle database operations with app context
             @with_app_context
             def get_user_data(discord_id):
-                from models import User
-                return User.query.filter_by(discord_id=discord_id).first()
+                try:
+                    from models import User
+                    from sqlalchemy import text
+                    
+                    # Ensure discord_id is a string
+                    if not isinstance(discord_id, str):
+                        discord_id = str(discord_id)
+                        
+                    # First try with direct SQL for more reliable results
+                    sql = text("SELECT * FROM users WHERE discord_id = :discord_id")
+                    result = db.session.execute(sql, {"discord_id": discord_id})
+                    rows = result.fetchall()
+                    sql_found = len(rows) > 0
+                    logger.info(f"Direct SQL query found {len(rows)} users with discord ID: {discord_id}")
+                    
+                    # Then try with ORM
+                    user = User.query.filter_by(discord_id=discord_id).first()
+                    logger.info(f"ORM query result: {user is not None}")
+                    
+                    # If SQL finds a user but ORM doesn't, try to refresh the session
+                    if sql_found and not user:
+                        logger.warning("SQL found user but ORM didn't, refreshing session...")
+                        db.session.commit()
+                        user = User.query.filter_by(discord_id=discord_id).first()
+                        logger.info(f"After session refresh, ORM query result: {user is not None}")
+                        
+                    return user
+                except Exception as e:
+                    logger.error(f"Database error in get_user_data: {e}")
+                    return None
             
             @with_app_context
             def update_user_verification(user, roblox_id, roblox_username, verification_code):
-                user.roblox_id = roblox_id
-                user.roblox_username = roblox_username
-                user.verification_code = verification_code
-                user.verified = False
-                db.session.commit()
-                return True
+                try:
+                    user.roblox_id = roblox_id
+                    user.roblox_username = roblox_username
+                    user.verification_code = verification_code
+                    user.verified = False
+                    
+                    # Flush changes to get any primary key values but don't commit yet
+                    db.session.flush()
+                    
+                    # Force a commit to ensure changes are persisted
+                    db.session.commit()
+                    
+                    # Verify the user was actually saved
+                    from models import User
+                    verification_check = User.query.filter_by(discord_id=user.discord_id).first()
+                    if verification_check:
+                        logger.info(f"DB VERIFICATION: Update for user {user.discord_id} saved with code {verification_check.verification_code}")
+                        return True
+                    else:
+                        logger.error(f"DB VERIFICATION FAILED: User {user.discord_id} not found after update!")
+                        return False
+                except Exception as e:
+                    logger.error(f"Failed to update user verification: {e}")
+                    # Try to rollback on error
+                    try:
+                        db.session.rollback()
+                    except Exception as rollback_error:
+                        logger.error(f"Rollback failed: {rollback_error}")
+                    return False
             
             # Check if the Roblox username exists with our improved function
             logger.info(f"Updating verification for user {interaction.user.name} with new Roblox username: {roblox_username}")
