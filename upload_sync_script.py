@@ -2,11 +2,6 @@ import os
 import base64
 import requests
 import json
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # GitHub configuration
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -38,7 +33,7 @@ def upload_file(file_path):
         
         # Create the API request data
         data = {
-            'message': f'Upload {file_path}',
+            'message': f'Update {file_path} - Sync automation',
             'content': content_encoded
         }
         
@@ -50,34 +45,35 @@ def upload_file(file_path):
             # File exists, update it
             file_data = check_response.json()
             data['sha'] = file_data['sha']
-            logger.info(f"Updating existing file: {file_path}")
+            print(f"Updating existing file: {file_path}")
         else:
-            logger.info(f"Creating new file: {file_path}")
+            print(f"Creating new file: {file_path}")
         
         # Make the API request
         response = requests.put(f'{API_URL}/{github_path}', headers=headers, data=json.dumps(data))
         
         # Check response
         if response.status_code in [200, 201]:
-            logger.info(f"Successfully uploaded {file_path}")
+            print(f"Successfully uploaded {file_path}")
             return True
         else:
-            logger.error(f"Failed to upload {file_path}: {response.status_code} {response.text}")
+            print(f"Failed to upload {file_path}: {response.status_code} {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error uploading {file_path}: {str(e)}")
+        print(f"Error uploading {file_path}: {str(e)}")
         return False
 
-# Upload specific files
+# The sync-related files to upload
 files_to_upload = [
     'auto_github_sync.py',
-    'upload_sync_script.py'
+    'upload_specific_files.py'
 ]
 
+# Upload each file individually
 for file_path in files_to_upload:
-    if os.path.exists(file_path):
-        logger.info(f"Uploading {file_path}...")
-        upload_file(file_path)
-    else:
-        logger.warning(f"File {file_path} does not exist")
+    print(f"\nUploading {file_path}...")
+    upload_file(file_path)
+
+# Finally upload this script itself
+upload_file('upload_sync_script.py')
