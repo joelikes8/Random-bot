@@ -1,10 +1,13 @@
 import github_upload
 
-# List of files to upload
+# List of files to upload (recent changes)
 files_to_upload = [
-    'utils/render_config.py',
-    'utils/roblox_api.py',
-    'cogs/verification.py'
+    'auto_github_sync.py',
+    'upload_sync_script.py',
+    'app.py',
+    'models.py',
+    '.env.example',
+    'upload_specific_files.py'
 ]
 
 # Upload each file
