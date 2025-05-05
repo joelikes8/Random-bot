@@ -2,11 +2,7 @@ import os
 import base64
 import requests
 import json
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+import time
 
 # GitHub configuration
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -25,11 +21,17 @@ headers = {
 def upload_specific_file(file_path):
     """Upload a specific file to GitHub"""
     try:
+        # Skip binary files or large files
+        if file_path.endswith(('.png', '.jpg', '.jpeg', '.ico', '.gif')) or \
+           os.path.getsize(file_path) > 1000000:  # Skip files larger than 1MB
+            print(f"Skipping large binary file: {file_path}")
+            return False
+            
         # Read file content
         with open(file_path, 'rb') as file:
             content = file.read()
-        
-        # Determine the GitHub path
+            
+        # Determine the GitHub path (relative to repo root)
         github_path = file_path
         if github_path.startswith('./') or github_path.startswith('/'):
             github_path = github_path[2:] if github_path.startswith('./') else github_path[1:]
@@ -39,7 +41,7 @@ def upload_specific_file(file_path):
         
         # Create the API request data
         data = {
-            'message': f'Upload {file_path}',
+            'message': f'Update {file_path} - New file',
             'content': content_encoded
         }
         
@@ -65,20 +67,22 @@ def upload_specific_file(file_path):
         else:
             print(f"Failed to upload {file_path}: {response.status_code} {response.text}")
             return False
-    
+            
     except Exception as e:
         print(f"Error uploading {file_path}: {str(e)}")
         return False
 
-# Files to upload
-new_files = [
-    'auto_login_roblox.py',
-    'github_update_cookie.py',
-    'github_upload_all.py',
-    'render.yaml',
-    'render_start.py'
-]
+# Upload this script itself
+upload_specific_file('upload_new_files.py')
 
-# Upload each file
-for file in new_files:
-    upload_specific_file(file)
+# Instructions for the user
+print("\nTo upload a new file, run the following command:")
+print("python upload_new_files.py <file_path>")
+print("Example: python upload_new_files.py new_feature.py")
+
+# Check if a file was specified as an argument
+import sys
+if len(sys.argv) > 1:
+    file_to_upload = sys.argv[1]
+    print(f"\nUploading {file_to_upload}...")
+    upload_specific_file(file_to_upload)
