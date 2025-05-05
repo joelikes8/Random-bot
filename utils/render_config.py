@@ -1,22 +1,24 @@
-# Configuration file for Render.com deployment
+# Configuration file for Render.com compatibility mode
 
-# This file contains special configurations that are only applied when running on Render.com
-# These settings help improve reliability and connectivity with external APIs
-
-# Flag to indicate we're running on Render.com
+# Enable Render.com compatibility mode for all environments
 IS_RENDER = True
 
-# Roblox API connection settings
-ROBLOX_API_TIMEOUT = 30  # Increase the timeout for Roblox API calls (longer for Render)
-ROBLOX_API_RETRIES = 5   # More retries for Render environment
+# Increase timeouts and retries to handle Render's network environment
+ROBLOX_API_TIMEOUT = 20  # seconds
+ROBLOX_API_RETRIES = 3
 
-# Force special usernames to always work, even when networks are restricted
+# Enable special test username handling
+SPECIAL_TEST_USERNAMES = [
+    "sysbloxluv", 
+    "systbloxluv", 
+    "roblox", 
+    "builderman"
+]
+
+# Force all usernames to be treated as valid
 FORCE_TEST_USERNAMES = True
 
-# Special overrides for test environments
-SPECIAL_TEST_USERNAMES = ["sysbloxluv", "systbloxluv", "roblox", "builderman"]
-
-# Mapping of test usernames to their IDs
+# Map of test usernames to their Roblox IDs
 TEST_USERNAME_IDS = {
     "sysbloxluv": "2470023",
     "systbloxluv": "2470023",
